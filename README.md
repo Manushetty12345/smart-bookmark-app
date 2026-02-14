@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+#  Smart Bookmark Manager
 
-## Getting Started
 
-First, run the development server:
+## 📌 Problems I Faced & How I Solved Them
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 1️⃣ Handling Google OAuth Redirect in App Router
+**Problem:** The session was not being properly stored after login. Users were redirected but appeared logged out.
+**Why:** Next.js App Router requires strict cookie handling on both server and client. Without a proper callback exchange, the session is lost.
+**Solution:** * Created a dedicated route `/api/auth/callback` to handle the code exchange.
+* Used `exchangeCodeForSession(code)` to finalize the login.
+* Configured Middleware to refresh cookies on every request.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2️⃣ Data Privacy via Row Level Security (RLS)
+**Problem:** Ensuring User A cannot see User B's bookmarks.
+**Solution:** I moved security to the database level rather than just the frontend.
+* Enabled **RLS** on the `bookmarks` table.
+* Created a policy using `auth.uid() = user_id`.
+* **Result:** The database automatically filters data based on the user's JWT, making it impossible for a user to "hack" into another person's data.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3️⃣ Real-time Updates Across Tabs
+**Problem:** New bookmarks didn't appear in other open tabs without a manual refresh.
+**Solution:** * Enabled the `supabase_realtime` publication for the table.
+* Implemented a `supabase.channel()` listener in a `useEffect` hook.
+* **Cleanup:** Ensured `supabase.removeChannel(channel)` is called on unmount to prevent memory leaks and duplicate listeners.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4️⃣ Stable Session Persistence
+**Problem:** Users would occasionally be logged out after a hard refresh.
+**Cause:** In the App Router, session cookies require manual refreshing via Middleware.
+**Solution:** Created a `middleware.ts` file using `@supabase/ssr` to call `supabase.auth.getUser()`. This keeps the session alive and stable on Vercel's edge network.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 5️⃣ Secure Database Ownership
+**Problem:** Manually passing `user_id` from the frontend is a security risk.
+**Solution:** * Set the `user_id` column to `DEFAULT auth.uid()`.
+* This ensures that even if a frontend request is intercepted, the database correctly assigns the bookmark to the actual authenticated user, not a spoofed ID.
